@@ -11,8 +11,11 @@ import time
 import re
 import collections
 import base64
-import urllib2
-from cStringIO import StringIO
+import base64
+from io import BytesIO
+from urllib.request import urlopen  # This replaces the typical usage of urllib2.urlopen
+from urllib.error import URLError, HTTPError  # This handles errors that urllib2 would handle
+from io import BytesIO
 
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
@@ -94,29 +97,29 @@ class MainHandler(webapp.RequestHandler):
         password = cgi.escape(self.request.get('password'))
 
         if not email or not password:
-	        error_message = 'Fill in the form please!'
-	        success = False
+            error_message = 'Fill in the form please!'
+            success = False
         else:
-            users_from_db = db.GqlQuery("SELECT * FROM User WHERE email = :email", email = email)
+            users_from_db = db.GqlQuery("SELECT * FROM User WHERE email = :email", email=email)
             if users_from_db.count() == 0:
                 user = User(email=email, password=sha256(password).hexdigest())
                 user.number_of_links = 0
                 user.balance = 0.00
-                
+
                 x = 1
                 while x == 1:
                     permalink = "".join([random.choice(string.letters[:26]) for i in xrange(6)])
                     new_permalink = Permalink(permalink=permalink)
-                    permalinks_from_db = db.GqlQuery("SELECT * FROM Permalink WHERE permalink = :permalink", permalink = permalink)
+                    permalinks_from_db = db.GqlQuery("SELECT * FROM Permalink WHERE permalink = :permalink", permalink=permalink)
                     if permalinks_from_db.count() == 0:
                         new_permalink.put()
                         x = 0
-                
+
                 user.reset_hash = permalink
                 user.put()
 
                 failing = True
-                
+
                 try:
                     s = sessions.Session()
                     s["user"] = email
@@ -136,22 +139,23 @@ class MainHandler(webapp.RequestHandler):
 
                     success = True
                 else:
-        	        error_message = 'That email is already taken, sorry!'
-        	        success = False
+                    error_message = 'That email is already taken, sorry!'
+                    success = False
 
         if success:
             return self.redirect("/links")
-    	else:
+        else:
             template_values = {
-		        'show_login_link': True,
-		        'show_error': True,
-		        'email_address': email,
-		        'body_id': 'index',
-		        'error_message': error_message
-		        }
+                'show_login_link': True,
+                'show_error': True,
+                'email_address': email,
+                'body_id': 'index',
+                'error_message': error_message
+            }
 
             path = os.path.join(os.path.dirname(__file__), 'templates/index.html')
             self.response.out.write(template.render(path, template_values))
+
 
 # Authentication methods!
 def is_logged_in():
